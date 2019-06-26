@@ -8911,7 +8911,11 @@ void V_cc(V *v) {
     _PUSH(&a, (tos2((byte *)"-fsanitize=leak")), tmp65, string);
   };
 
-  string sysroot = tos2((byte *)"/Users/alex/tmp/lld/linuxroot/");
+  string sysroot = tos2((byte *)"/");
+
+  if (!linux_host) {
+    sysroot = tos2((byte *)"/Users/alex/tmp/lld/linuxroot/");
+  }
 
   if (v->os == main__OS_linux && !linux_host) {
 
@@ -8963,6 +8967,14 @@ void V_cc(V *v) {
     };
   };
 
+  string clang_exec_path = tos2((byte *)"/usr/bin");
+
+  if (!linux_host) {
+    clang_exec_path = tos2((byte *)"/usr/local/Cellar/llvm/8.0.0/bin");
+  }
+
+  string fast_clang = string_add(clang_exec_path, tos2((byte *)"/clang"));
+
   if (v->os == main__OS_windows) {
 
     _PUSH(&a, (tos2((byte *)"-DUNICODE -D_UNICODE")), tmp76, string);
@@ -8971,6 +8983,12 @@ void V_cc(V *v) {
   string args = array_string_join(a, tos2((byte *)" "));
 
   string cmd = _STR("cc %.*s", args.len, args.str);
+
+  string centos_cmd = tos2((byte *)"cat /etc/redhat-release | awk '{print $1}'");
+
+  if (string_contains(os__exec(centos_cmd), tos2((byte *)"CentOS"))) {
+    cmd = _STR("%.*s %.*s", fast_clang.len, fast_clang.str, args.len, args.str);
+  }
 
 #ifdef _WIN32
 
@@ -9002,6 +9020,12 @@ void V_cc(V *v) {
 
     println(tos2((byte *)"=========\n"));
   };
+
+  string lld = string_add(clang_exec_path, tos2((byte *)"/ld"));
+
+  if (!linux_host) {
+    lld = string_add(clang_exec_path, tos2((byte *)"/ld.lld"));
+  }
 
   if (string_contains(res, tos2((byte *)"error: "))) {
 
@@ -9045,16 +9069,18 @@ void V_cc(V *v) {
                     string_add(
                         string_add(
                             string_add(
-                                string_add(_STR("/usr/local/Cellar/llvm/8.0.0/"
-                                                "bin/ld.lld --sysroot=%.*s ",
-                                                sysroot.len, sysroot.str),
-                                           _STR("-v -o %.*s ", v->out_name.len,
-                                                v->out_name.str)),
+                                string_add(
+                                    string_add(
+                                        lld,
+                                        _STR(" --sysroot=%.*s ",
+                                            sysroot.len, sysroot.str)),
+                                    _STR("-v -o %.*s ", v->out_name.len,
+                                        v->out_name.str)),
                                 tos2((byte *)"-m elf_x86_64 -dynamic-linker "
-                                             "/lib64/ld-linux-x86-64.so.2 ")),
+                                    "/lib64/ld-linux-x86-64.so.2 ")),
                             tos2((byte *)"/usr/lib/x86_64-linux-gnu/crt1.o ")),
                         _STR("%.*s/lib/x86_64-linux-gnu/libm-2.28.a ",
-                             sysroot.len, sysroot.str)),
+                            sysroot.len, sysroot.str)),
                     tos2((byte *)"/usr/lib/x86_64-linux-gnu/crti.o ")),
                 obj_file),
             tos2((byte *)" /usr/lib/x86_64-linux-gnu/libc.so ")),
